@@ -1,0 +1,54 @@
+services:
+  unique-ding-kitchen:
+    image: ghcr.io/your-org/unique-ding-kitchen:latest
+    container_name: unique-ding-kitchen
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      # Site title
+      SITE_NAME: "UniqueDing's Kitchen"
+
+      # Recommendation generation provider settings
+      OPENAI_BASE_URL: "https://api.openai.com/v1"
+      OPENAI_API_KEY: "your-openai-api-key"
+      OPENAI_MODEL: "gpt-4o-mini"
+
+      # Scheduler and timezone
+      TZ: "Asia/Shanghai"
+      RECOMMEND_CRON_SCHEDULE: "0 0 * * *"
+
+      # Internal web port
+      WEB_PORT: "8080"
+
+      # Reverse-proxy subpath, if any
+      # Example: "/cook/"
+      WEB_BASE_HREF: "/"
+
+      # Menu source: "local" or "trillium"
+      MENU_SOURCE: "local"
+
+      # Trillium source settings (optional)
+      TRILLIUM_URL: "https://note.uniqueding.xyz/share/cooklist" # optional
+      TRILLIUM_TITLE: "cooklist" # optional
+
+      # Optional runtime toggles
+      # RUN_RECOMMEND_ON_START: "false"
+      # OPENAI_TIMEOUT_SECONDS: "45"
+      # OPENAI_MAX_RETRIES: "2"
+
+    volumes:
+      - ../web/public:/app/site/public
+
+    # Optional compose extras
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/"]
+    #   interval: 30s
+    #   timeout: 5s
+    #   retries: 3
+    #
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.unique-ding.rule=Host(`example.com`) && PathPrefix(`/cook`)

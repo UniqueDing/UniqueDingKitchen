@@ -1,0 +1,7 @@
+.git
+.github
+.idea
+.dart_tool
+build
+.sisyphus
+*.iml

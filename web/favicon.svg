@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <rect x="36" y="36" width="440" height="440" rx="112" fill="#FFF7ED"/>
+
+  <path d="M164 154
+           H348
+           C361 154 372 165 372 178
+           V326
+           C358 326 347 337 347 351
+           C347 365 358 376 372 376
+           V382
+           C372 395 361 406 348 406
+           H164
+           C151 406 140 395 140 382
+           V376
+           C154 376 165 365 165 351
+           C165 337 154 326 140 326
+           V178
+           C140 165 151 154 164 154Z"
+        fill="white" stroke="#1F2937" stroke-width="18" stroke-linejoin="round"/>
+
+  <g transform="translate(0 -2)">
+    <path d="M221 118
+             C225 101 239 90 256 90
+             C273 90 287 101 291 118
+             C297 109 307 104 319 104
+             C337 104 351 118 351 136
+             C365 138 376 149 376 164
+             C376 182 362 196 344 196
+             H168
+             C150 196 136 182 136 164
+             C136 149 147 138 161 136
+             C161 118 175 104 193 104
+             C205 104 215 109 221 118Z"
+          fill="white" stroke="#1F2937" stroke-width="18" stroke-linejoin="round"/>
+    <line x1="190" y1="206" x2="322" y2="206" stroke="#F59E0B" stroke-width="18" stroke-linecap="round"/>
+  </g>
+
+  <line x1="186" y1="244" x2="326" y2="244" stroke="#1F2937" stroke-width="16" stroke-linecap="round"/>
+  <line x1="186" y1="286" x2="326" y2="286" stroke="#1F2937" stroke-width="16" stroke-linecap="round"/>
+  <line x1="186" y1="328" x2="258" y2="328" stroke="#1F2937" stroke-width="16" stroke-linecap="round"/>
+
+  <path d="M286 326 L316 356 L366 296" stroke="#F59E0B" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
