@@ -20,7 +20,7 @@ class RuntimeConfig {
 
   static const RuntimeConfig webStrictFallback = RuntimeConfig(
     siteName: "UniqueDing's Kitchen",
-    menuSource: 'trillium',
+    menuSource: 'local',
     trilliumUrl: '',
     trilliumTitle: '',
   );

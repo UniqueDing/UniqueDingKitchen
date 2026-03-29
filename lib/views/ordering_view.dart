@@ -97,6 +97,7 @@ class _OrderingViewState extends State<OrderingView>
 
   @override
   void didChangeMetrics() {
+    _syncHeroCardHeight();
     _scheduleSectionOffsetRefresh();
   }
 
@@ -172,6 +173,7 @@ class _OrderingViewState extends State<OrderingView>
       return;
     }
 
+    final maxScrollExtent = _scrollController.position.maxScrollExtent;
     final nextOffsets = <String, double>{};
     for (final category in _cachedDerived.categories) {
       final renderObject = _sectionKeys[category]?.currentContext
@@ -180,9 +182,11 @@ class _OrderingViewState extends State<OrderingView>
         continue;
       }
       final viewport = RenderAbstractViewport.of(renderObject);
-      nextOffsets[category] = viewport
-          .getOffsetToReveal(renderObject, 0)
-          .offset;
+      final revealOffset = viewport.getOffsetToReveal(renderObject, 0).offset;
+      nextOffsets[category] = (revealOffset - _heroUnderlapOffset).clamp(
+        0.0,
+        maxScrollExtent,
+      );
     }
 
     if (nextOffsets.isEmpty) {
@@ -288,11 +292,6 @@ class _OrderingViewState extends State<OrderingView>
       return;
     }
 
-    final switchOffset =
-        (120.0 - _heroTopInset - _heroCardHeight - _heroBottomGap).clamp(
-          0.0,
-          double.infinity,
-        );
     String? activeCategory;
     String? firstVisibleCategory;
     final currentOffset = _scrollController.hasClients
@@ -306,7 +305,7 @@ class _OrderingViewState extends State<OrderingView>
       }
 
       firstVisibleCategory ??= category;
-      if (sectionOffset <= currentOffset + switchOffset) {
+      if (sectionOffset <= currentOffset) {
         activeCategory = category;
       }
     }
