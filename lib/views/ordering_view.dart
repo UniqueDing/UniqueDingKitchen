@@ -41,6 +41,7 @@ class _OrderingViewState extends State<OrderingView>
   static const double _heroTopInset = 8;
   static const double _heroBottomGap = 8;
   static const double _heroUnderlapOffset = 64;
+  static const double _tocSwitchHysteresis = 16;
 
   final Map<String, int> _quantities = <String, int>{};
   final Map<String, String> _selectedFlavorByDish = <String, String>{};
@@ -59,6 +60,7 @@ class _OrderingViewState extends State<OrderingView>
   bool _startupShellReadySent = false;
   bool _heroCardHeightSyncScheduled = false;
   bool _sectionOffsetRefreshScheduled = false;
+  bool _sectionOffsetHydrationInProgress = false;
   double _heroCardHeight = 56;
 
   List<Dish>? _cachedDishesRef;
@@ -165,6 +167,7 @@ class _OrderingViewState extends State<OrderingView>
         return;
       }
       _refreshSectionScrollOffsets();
+      _hydrateSectionOffsetsIfNeeded();
     });
   }
 
@@ -183,20 +186,72 @@ class _OrderingViewState extends State<OrderingView>
       }
       final viewport = RenderAbstractViewport.of(renderObject);
       final revealOffset = viewport.getOffsetToReveal(renderObject, 0).offset;
-      nextOffsets[category] = (revealOffset - _heroUnderlapOffset).clamp(
-        0.0,
-        maxScrollExtent,
-      );
+      nextOffsets[category] = revealOffset.clamp(0.0, maxScrollExtent);
     }
 
     if (nextOffsets.isEmpty) {
       return;
     }
 
-    _sectionScrollOffsets
-      ..clear()
-      ..addAll(nextOffsets);
+    _sectionScrollOffsets.addAll(nextOffsets);
     _syncCategoryFromScroll();
+  }
+
+  Future<void> _hydrateSectionOffsetsIfNeeded() async {
+    if (!mounted ||
+        _sectionOffsetHydrationInProgress ||
+        !_scrollController.hasClients ||
+        _cachedDerived.categories.isEmpty ||
+        _sectionScrollOffsets.length >= _cachedDerived.categories.length) {
+      return;
+    }
+
+    _sectionOffsetHydrationInProgress = true;
+    final originalOffset = _scrollController.offset;
+    final max = _scrollController.position.maxScrollExtent;
+
+    try {
+      for (final category in _cachedDerived.categories) {
+        if (_sectionScrollOffsets.containsKey(category)) {
+          continue;
+        }
+
+        RenderObject? renderObject = _sectionKeys[category]?.currentContext
+            ?.findRenderObject();
+
+        if (renderObject == null) {
+          for (final probeOffset in _candidateCategoryOffsets(category)) {
+            _scrollController.jumpTo(probeOffset);
+            await WidgetsBinding.instance.endOfFrame;
+            if (!mounted) {
+              return;
+            }
+            renderObject = _sectionKeys[category]?.currentContext
+                ?.findRenderObject();
+            if (renderObject != null) {
+              break;
+            }
+          }
+        }
+
+        if (renderObject == null) {
+          continue;
+        }
+
+        final viewport = RenderAbstractViewport.of(renderObject);
+        final revealOffset = viewport.getOffsetToReveal(renderObject, 0).offset;
+        final clamped = revealOffset.clamp(0.0, max);
+        _sectionScrollOffsets[category] = clamped;
+      }
+    } finally {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(originalOffset.clamp(0.0, max));
+      }
+      _sectionOffsetHydrationInProgress = false;
+      if (mounted) {
+        _syncCategoryFromScroll();
+      }
+    }
   }
 
   void _ensureMenuCache(List<Dish> dishes) {
@@ -288,29 +343,39 @@ class _OrderingViewState extends State<OrderingView>
   }
 
   void _syncCategoryFromScroll() {
-    if (_isProgrammaticScroll || _sectionScrollOffsets.isEmpty) {
+    if (_isProgrammaticScroll) {
       return;
     }
 
+    if (_sectionScrollOffsets.length < _cachedDerived.categories.length) {
+      _scheduleSectionOffsetRefresh();
+      _hydrateSectionOffsetsIfNeeded();
+    }
+
     String? activeCategory;
-    String? firstVisibleCategory;
+    String? firstKnownCategory;
     final currentOffset = _scrollController.hasClients
         ? _scrollController.offset
         : 0.0;
+    final activationOffset =
+        currentOffset + _heroUnderlapOffset + _tocSwitchHysteresis;
 
     for (final category in _cachedDerived.categories) {
       final sectionOffset = _sectionScrollOffsets[category];
       if (sectionOffset == null) {
         continue;
       }
+      firstKnownCategory ??= category;
 
-      firstVisibleCategory ??= category;
-      if (sectionOffset <= currentOffset) {
+      if (sectionOffset <= activationOffset) {
         activeCategory = category;
       }
     }
 
-    activeCategory ??= firstVisibleCategory;
+    activeCategory ??= firstKnownCategory;
+    if (activeCategory == null && _cachedDerived.categories.isNotEmpty) {
+      activeCategory = _cachedDerived.categories.first;
+    }
 
     if (activeCategory != null && activeCategory != _selectedCategory.value) {
       _selectedCategory.value = activeCategory;
