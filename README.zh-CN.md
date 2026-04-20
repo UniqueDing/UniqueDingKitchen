@@ -2,7 +2,7 @@
 
 一个基于 Flutter Web 的点餐应用，菜单和推荐内容由 Markdown 数据驱动。
 
-- English version: [README.en.md](./README.en.md)
+- English version: [README.md](./README.md)
 
 ## 截图
 
@@ -10,13 +10,13 @@
 
 展示白天主题下的点餐首页，包括 AI 今日推荐、分类导航以及底部下单栏。
 
-![白天主题](./docs/screenshots/app-day-theme.png)
+![白天主题](./docs/screenshots/app-dark-theme.png)
 
 ### 黑暗主题
 
 展示黑暗主题下的菜单页面，包括分类菜品列表以及加单操作。
 
-![黑暗主题](./docs/screenshots/app-dark-theme.png)
+![黑暗主题](./docs/screenshots/app-day-theme.png)
 
 ## 主要目录
 
