@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:unique_ding_kitchen/l10n/app_localizations.dart';
 import 'package:unique_ding_kitchen/models/models.dart';
 import 'package:unique_ding_kitchen/services/menu_repository.dart';
+import 'package:unique_ding_kitchen/services/qr_image_actions.dart';
 import 'package:unique_ding_kitchen/services/startup_shell_signal.dart';
 import 'package:unique_ding_kitchen/views/ordering_data_loader.dart';
 import 'package:unique_ding_kitchen/views/ordering_page_derived.dart';
@@ -1991,16 +1993,12 @@ class _OrderSummaryPageState extends State<_OrderSummaryPage> {
           .putIfAbsent(item.dish.category, () => <CartItem>[])
           .add(item);
     }
-
-    Future<void> onCopy() async {
+    Future<void> onConfirmOrder() async {
       final orderText = widget.buildOrderText(_noteController.text.trim());
-      await Clipboard.setData(ClipboardData(text: orderText));
-      if (!context.mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.orderTextCopied)));
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => _OrderExportDialog(orderText: orderText),
+      );
     }
 
     return Scaffold(
@@ -2089,9 +2087,9 @@ class _OrderSummaryPageState extends State<_OrderSummaryPage> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: FilledButton(
-                              key: const Key('summary-copy'),
-                              onPressed: onCopy,
-                              child: Text(l10n.copy),
+                              key: const Key('summary-confirm-order'),
+                              onPressed: onConfirmOrder,
+                              child: Text(l10n.confirmOrderAction),
                             ),
                           ),
                         ],
@@ -2106,4 +2104,322 @@ class _OrderSummaryPageState extends State<_OrderSummaryPage> {
       ),
     );
   }
+}
+
+class _OrderExportDialog extends StatefulWidget {
+  const _OrderExportDialog({required this.orderText});
+
+  final String orderText;
+
+  @override
+  State<_OrderExportDialog> createState() => _OrderExportDialogState();
+}
+
+class _OrderExportDialogState extends State<_OrderExportDialog> {
+  final GlobalKey _captureKey = GlobalKey();
+
+  Future<Uint8List?> _captureOrderImageBytes() async {
+    for (var attempt = 0; attempt < 5; attempt++) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) {
+        return null;
+      }
+
+      final boundary =
+          _captureKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) {
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+        continue;
+      }
+
+      try {
+        final image = await boundary.toImage(pixelRatio: 3);
+        final bytes = await image.toByteData(format: ImageByteFormat.png);
+        if (bytes == null) {
+          return null;
+        }
+        return bytes.buffer.asUint8List();
+      } catch (_) {
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _copyText() async {
+    await Clipboard.setData(ClipboardData(text: widget.orderText));
+    if (!mounted) {
+      return;
+    }
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(content: Text(l10n.orderTextCopied)));
+  }
+
+  Future<void> _copyImage() async {
+    final bytes = await _captureOrderImageBytes();
+    if (!mounted) {
+      return;
+    }
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    if (bytes == null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.orderImageCopyFailed)),
+      );
+      return;
+    }
+    final copied = await copyQrImageToClipboard(bytes);
+    if (!mounted) {
+      return;
+    }
+    if (copied) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.orderImageCopied)));
+      return;
+    }
+    messenger.showSnackBar(SnackBar(content: Text(l10n.orderImageCopyFailed)));
+  }
+
+  _ParsedOrderBody _parseOrderBody(Iterable<String> lines) {
+    String? note;
+    final categories = <_OrderImageCategory>[];
+    _OrderImageCategory? currentCategory;
+
+    for (final raw in lines) {
+      final line = raw.trim();
+      if (line.isEmpty) {
+        continue;
+      }
+
+      final categoryMatch = RegExp(r'^【(.+)】$').firstMatch(line);
+      if (categoryMatch != null) {
+        currentCategory = _OrderImageCategory(
+          title: categoryMatch.group(1)!.trim(),
+          items: <_OrderImageItem>[],
+        );
+        categories.add(currentCategory);
+        continue;
+      }
+
+      if (line.startsWith('- ')) {
+        final itemMatch = RegExp(r'^-\s*(.+?)\s*x\s*(\d+)$').firstMatch(line);
+        final itemName =
+            itemMatch?.group(1)?.trim() ?? line.substring(2).trim();
+        final itemQty = itemMatch?.group(2)?.trim();
+        (currentCategory ??= _OrderImageCategory(
+          title: '',
+          items: <_OrderImageItem>[],
+        )).items.add(_OrderImageItem(name: itemName, quantity: itemQty));
+        if (categories.isEmpty ||
+            !identical(categories.last, currentCategory)) {
+          categories.add(currentCategory);
+        }
+        continue;
+      }
+
+      note ??= line;
+    }
+
+    return _ParsedOrderBody(note: note, categories: categories);
+  }
+
+  Widget _buildOrderImageCard({
+    required BuildContext context,
+    required bool isDark,
+    required String siteTitle,
+    required _ParsedOrderBody parsedBody,
+  }) {
+    return Container(
+      width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 190),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2F2824) : const Color(0xFFFFFBF6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF5A4A42) : const Color(0xFFE7D7CB),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: isDark
+                      ? const Color(0xFF3A312C)
+                      : const Color(0xFFF2E6D8),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: SvgPicture.asset(
+                    'web/favicon.svg',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  siteTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: isDark
+                        ? const Color(0xFFF3E3D8)
+                        : const Color(0xFF3B2A23),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (parsedBody.note != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF372F2A)
+                    : const Color(0xFFF9F3EB),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                parsedBody.note!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: isDark
+                      ? const Color(0xFFF3E3D8)
+                      : const Color(0xFF5A4034),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          ...parsedBody.categories.map((category) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (category.title.isNotEmpty) ...[
+                    _CategoryGroupHeader(label: category.title),
+                    const SizedBox(height: 6),
+                  ],
+                  ...category.items.map((item) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.name,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                          Text(item.quantity ?? ''),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final lines = widget.orderText.split('\n');
+    final siteTitle = lines.isNotEmpty
+        ? lines.first.trim()
+        : l10n.orderConfirmTitle;
+    final parsedBody = _parseOrderBody(lines.skip(1));
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                l10n.orderConfirmTitle,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 10),
+              RepaintBoundary(
+                key: _captureKey,
+                child: _buildOrderImageCard(
+                  context: context,
+                  isDark: isDark,
+                  siteTitle: siteTitle,
+                  parsedBody: parsedBody,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _copyText,
+                      child: Text(l10n.copyText),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _copyImage,
+                      child: Text(l10n.copyImage),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(l10n.close),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ParsedOrderBody {
+  const _ParsedOrderBody({required this.note, required this.categories});
+
+  final String? note;
+  final List<_OrderImageCategory> categories;
+}
+
+class _OrderImageCategory {
+  const _OrderImageCategory({required this.title, required this.items});
+
+  final String title;
+  final List<_OrderImageItem> items;
+}
+
+class _OrderImageItem {
+  const _OrderImageItem({required this.name, required this.quantity});
+
+  final String name;
+  final String? quantity;
 }
