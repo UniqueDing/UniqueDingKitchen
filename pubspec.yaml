@@ -58,6 +58,12 @@ flutter:
   generate: true
   assets:
     - web/favicon.svg
+    - assets/fonts/NotoSansCJK-Regular.ttc
+
+  fonts:
+    - family: Noto Sans CJK Local
+      fonts:
+        - asset: assets/fonts/NotoSansCJK-Regular.ttc
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
