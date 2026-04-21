@@ -6,17 +6,16 @@
 
 ## 截图
 
-### 白天主题
-
-展示白天主题下的点餐首页，包括 AI 今日推荐、分类导航以及底部下单栏。
-
-![白天主题](./docs/screenshots/app-dark-theme.png)
-
-### 黑暗主题
-
-展示黑暗主题下的菜单页面，包括分类菜品列表以及加单操作。
-
-![黑暗主题](./docs/screenshots/app-day-theme.png)
+<table>
+  <tr>
+    <td align="center"><strong>白天主题</strong></td>
+    <td align="center"><strong>黑暗主题</strong></td>
+  </tr>
+  <tr>
+    <td><img src="./docs/screenshots/app-dark-theme.png" alt="白天主题" /></td>
+    <td><img src="./docs/screenshots/app-day-theme.png" alt="黑暗主题" /></td>
+  </tr>
+</table>
 
 ## 主要目录
 

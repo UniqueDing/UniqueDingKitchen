@@ -6,17 +6,16 @@ Flutter Web ordering app with markdown-driven menu and recommendation content.
 
 ## Screenshots
 
-### Day Theme
-
-Shows the ordering page in the light theme, including AI recommendations, category navigation, and the bottom order bar.
-
-![Day Theme](./docs/screenshots/app-dark-theme.png)
-
-### Dark Theme
-
-Shows the menu page in the dark theme with categorized dishes and add-to-order actions.
-
-![Dark Theme](./docs/screenshots/app-day-theme.png)
+<table>
+  <tr>
+    <td align="center"><strong>Day Theme</strong></td>
+    <td align="center"><strong>Dark Theme</strong></td>
+  </tr>
+  <tr>
+    <td><img src="./docs/screenshots/app-dark-theme.png" alt="Day Theme" /></td>
+    <td><img src="./docs/screenshots/app-day-theme.png" alt="Dark Theme" /></td>
+  </tr>
+</table>
 
 ## Key Directories
 
